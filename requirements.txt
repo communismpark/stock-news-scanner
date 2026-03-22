@@ -1,0 +1,10 @@
+anthropic
+yfinance
+newsapi-python
+finnhub-python
+alpha-vantage
+feedparser
+ntscraper
+rich
+python-dotenv
+pytz

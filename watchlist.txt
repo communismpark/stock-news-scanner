@@ -1,0 +1,8 @@
+# Stock watchlist for Section 3 of the scanner
+# Add one ticker per line (e.g. AAPL, SPY, AMD)
+# Lines starting with # are ignored
+# Example:
+# AMD
+# INTC
+# BA
+# JPM
