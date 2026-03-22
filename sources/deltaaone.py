@@ -21,25 +21,30 @@ NITTER_INSTANCES = [
 
 DELTAAONE_HANDLE = "DeItaone"
 
+# @DeItaone posts very frequently (can be every minute during breaking news).
+# Pre-market window is ~17h → up to ~1000 tweets. Fetch generously, then cap
+# what we pass to Claude so the prompt stays manageable.
+_FETCH_LIMIT = 1200      # max tweets to pull from Nitter
+_CLAUDE_CAP  = 60        # most-recent tweets forwarded to the AI pipeline
+
 
 def fetch(window_start: datetime, window_end: datetime) -> list[dict]:
     """
     Scrape @DeItaone tweets from Nitter.
-    Returns list of article dicts, or empty list with a status message if unavailable.
+    Returns up to _CLAUDE_CAP most-recent tweets in the window,
+    or an empty list if Nitter is unavailable.
     """
     if not NTSCRAPER_AVAILABLE:
         return []
 
-    tweets = []
-    scraper = None
-
+    results = None
     for instance in NITTER_INSTANCES:
         try:
             scraper = Nitter(log_level=1, skip_instance_check=False)
             results = scraper.get_tweets(
                 DELTAAONE_HANDLE,
                 mode="user",
-                number=100,
+                number=_FETCH_LIMIT,
                 instance=instance,
             )
             if results and results.get("tweets"):
@@ -51,14 +56,18 @@ def fetch(window_start: datetime, window_end: datetime) -> list[dict]:
     if not results or not results.get("tweets"):
         return []
 
+    tweets = []
     for tweet in results.get("tweets", []):
-        # ntscraper returns date as a string like "Mar 21, 2024 · 8:45 AM UTC"
         date_str = tweet.get("date", "")
         pub_dt = _parse_nitter_date(date_str)
         if pub_dt is None:
             continue
 
-        if not (window_start <= pub_dt <= window_end):
+        # Nitter returns newest-first. Once we go past window_start we're done.
+        if pub_dt < window_start:
+            break
+
+        if pub_dt > window_end:
             continue
 
         text = tweet.get("text", "").strip()
@@ -66,7 +75,6 @@ def fetch(window_start: datetime, window_end: datetime) -> list[dict]:
             continue
 
         link = tweet.get("link", "")
-
         tweets.append({
             "title": text[:120] + ("..." if len(text) > 120 else ""),
             "summary": text,
@@ -77,7 +85,8 @@ def fetch(window_start: datetime, window_end: datetime) -> list[dict]:
             "section_hint": "other",
         })
 
-    return tweets
+    # Already newest-first from Nitter; keep only the most recent _CLAUDE_CAP.
+    return tweets[:_CLAUDE_CAP]
 
 
 def _parse_nitter_date(date_str: str) -> datetime | None:

@@ -16,22 +16,48 @@ def fetch_ticker_news(ticker: str, window_start: datetime, window_end: datetime)
         return []
 
     for item in news_items:
-        ts = item.get("providerPublishTime") or item.get("publishedAt")
-        if ts is None:
+        # yfinance 1.2.0+ wraps everything under a "content" key
+        content = item.get("content") or item
+        if not content:
             continue
-        try:
-            pub_dt = datetime.fromtimestamp(ts, tz=pytz.utc)
-        except Exception:
+
+        # Parse publish date — ISO string in new format, unix timestamp in old
+        pub_str = content.get("pubDate") or content.get("displayTime")
+        ts = content.get("providerPublishTime")
+        pub_dt = None
+        if pub_str:
+            try:
+                pub_dt = datetime.fromisoformat(pub_str.replace("Z", "+00:00"))
+            except Exception:
+                pass
+        if pub_dt is None and ts:
+            try:
+                pub_dt = datetime.fromtimestamp(ts, tz=pytz.utc)
+            except Exception:
+                pass
+        if pub_dt is None:
             continue
 
         if not (window_start <= pub_dt <= window_end):
             continue
 
+        title = content.get("title", "")
+        summary = content.get("summary") or content.get("description") or ""
+        url = (
+            (content.get("clickThroughUrl") or {}).get("url")
+            or (content.get("canonicalUrl") or {}).get("url")
+            or content.get("link", "")
+        )
+        source = (
+            (content.get("provider") or {}).get("displayName")
+            or content.get("publisher", "Yahoo Finance")
+        )
+
         articles.append({
-            "title": item.get("title", ""),
-            "summary": "",
-            "url": item.get("link", ""),
-            "source": item.get("publisher", "Yahoo Finance"),
+            "title": title,
+            "summary": summary,
+            "url": url,
+            "source": source,
             "published_at": pub_dt,
             "tickers": [ticker],
             "section_hint": "ticker",

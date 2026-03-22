@@ -1,6 +1,7 @@
 """
 renderer.py — Rich terminal display for the 4-section stock news scanner.
 """
+import sys
 from datetime import datetime
 
 import pytz
@@ -11,7 +12,16 @@ from rich.table import Table
 from rich.text import Text
 from rich import box
 
-console = Console()
+# Force non-legacy mode so Rich uses ANSI codes instead of Win32 API,
+# which avoids GBK encoding failures on Chinese-locale Windows machines.
+console = Console(highlight=False, legacy_windows=False)
+
+
+def _safe(text: str) -> str:
+    """Replace characters that Windows GBK codec can't handle."""
+    if not text:
+        return ""
+    return text.encode("ascii", errors="replace").decode("ascii")
 ET = pytz.timezone("America/New_York")
 
 
@@ -27,11 +37,11 @@ def _to_et(dt) -> str:
 
 
 def _article_panel(article: dict, color: str = "white") -> Panel:
-    source = article.get("source", "")
+    source = _safe(article.get("source", ""))
     pub = _to_et(article.get("published_at", ""))
     tickers = " ".join(f"[bold cyan]${t}[/]" for t in article.get("tickers", []))
-    summary = article.get("summary", "")
-    url = article.get("url", "")
+    summary = _safe(article.get("summary", ""))
+    url = _safe(article.get("url", ""))
 
     body = f"[{color}]{summary}[/]"
     if tickers:
@@ -39,12 +49,12 @@ def _article_panel(article: dict, color: str = "white") -> Panel:
     if url:
         body += f"\n[dim]{url}[/]"
 
-    title = f"[bold]{article.get('title', '')}[/]  [dim]{source} · {pub}[/]"
+    title = f"[bold]{_safe(article.get('title', ''))}[/]  [dim]{source} · {pub}[/]"
     return Panel(body, title=title, border_style=color, padding=(0, 1))
 
 
 def render_warning(message: str):
-    console.print(f"\n[bold yellow]⚠  {message}[/]\n")
+    console.print(f"\n[bold yellow]WARNING: {message}[/]\n")
 
 
 def render_header(window_start: datetime, window_end: datetime):
@@ -52,14 +62,14 @@ def render_header(window_start: datetime, window_end: datetime):
     end_str = window_end.astimezone(ET).strftime("%b %d %I:%M %p ET")
     console.print()
     console.print(Rule(
-        f"[bold white] STOCK NEWS SCANNER  ·  {start_str} → {end_str} [/]",
+        f"[bold white] STOCK NEWS SCANNER  |  {start_str} -> {end_str} [/]",
         style="bright_white",
     ))
     console.print()
 
 
 def render_section1(data: dict):
-    console.print(Rule("[bold red] SECTION 1 — MAJOR NEWS & TRADING THESIS [/]", style="red"))
+    console.print(Rule("[bold red] SECTION 1 -- MAJOR NEWS & TRADING THESIS [/]", style="red"))
     console.print()
 
     themes = data.get("themes", [])
@@ -68,10 +78,10 @@ def render_section1(data: dict):
             score = theme.get("score", 0)
             score_color = "green" if score >= 7 else ("yellow" if score >= 4 else "dim")
             title_text = Text()
-            title_text.append(f"  {theme.get('title', '')}  ", style="bold white")
+            title_text.append(f"  {_safe(theme.get('title', ''))}  ", style="bold white")
             title_text.append(f"[Signal {score}/10]", style=f"bold {score_color}")
             console.print(Panel(
-                f"[white]{theme.get('thesis', '')}[/]",
+                f"[white]{_safe(theme.get('thesis', ''))}[/]",
                 title=title_text,
                 border_style="red",
                 padding=(0, 2),
@@ -90,7 +100,7 @@ def render_section1(data: dict):
 
 
 def render_section2(data: dict, upgrades: list[dict]):
-    console.print(Rule("[bold blue] SECTION 2 — MAG 7 [/]", style="blue"))
+    console.print(Rule("[bold blue] SECTION 2 -- MAG 7 [/]", style="blue"))
     console.print()
 
     # Upgrades/downgrades table for mag7
@@ -108,7 +118,7 @@ def render_section2(data: dict, upgrades: list[dict]):
         any_content = True
         console.print(f"[bold blue]  ${ticker}[/]")
         if summary:
-            console.print(f"  [white]{summary}[/]\n")
+            console.print(f"  [white]{_safe(summary)}[/]\n")
         for article in articles:
             console.print(_article_panel(article, color="blue"))
 
@@ -119,7 +129,7 @@ def render_section2(data: dict, upgrades: list[dict]):
 
 
 def render_section3(data: dict, upgrades: list[dict]):
-    console.print(Rule("[bold green] SECTION 3 — WATCHLIST [/]", style="green"))
+    console.print(Rule("[bold green] SECTION 3 -- WATCHLIST [/]", style="green"))
     console.print()
 
     watchlist_tickers = set(data.keys())
@@ -139,7 +149,7 @@ def render_section3(data: dict, upgrades: list[dict]):
             continue
         console.print(f"[bold green]  ${ticker}[/]")
         if summary:
-            console.print(f"  [white]{summary}[/]\n")
+            console.print(f"  [white]{_safe(summary)}[/]\n")
         for article in articles:
             console.print(_article_panel(article, color="green"))
 
@@ -147,16 +157,16 @@ def render_section3(data: dict, upgrades: list[dict]):
 
 
 def render_section4(data: dict, deltaaone_available: bool):
-    console.print(Rule("[bold dim] SECTION 4 — OTHER NOTABLE NEWS [/]", style="dim"))\
+    console.print(Rule("[bold dim] SECTION 4 -- OTHER NOTABLE NEWS [/]", style="dim"))
 
     console.print()
 
     if not deltaaone_available:
-        console.print("[dim]  @DeItaone (Nitter) unavailable — showing RSS/API sources only.[/]\n")
+        console.print("[dim]  @DeItaone (Nitter) unavailable -- showing RSS/API sources only.[/]\n")
 
     summary = data.get("summary", "")
     if summary:
-        console.print(Panel(f"[dim white]{summary}[/]", border_style="dim", padding=(0, 2)))
+        console.print(Panel(f"[dim white]{_safe(summary)}[/]", border_style="dim", padding=(0, 2)))
         console.print()
 
     articles = data.get("articles", [])
