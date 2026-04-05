@@ -161,9 +161,6 @@ def render_section4(data: dict, deltaaone_available: bool):
 
     console.print()
 
-    if not deltaaone_available:
-        console.print("[dim]  @DeItaone (Nitter) unavailable -- showing RSS/API sources only.[/]\n")
-
     summary = data.get("summary", "")
     if summary:
         console.print(Panel(f"[dim white]{_safe(summary)}[/]", border_style="dim", padding=(0, 2)))

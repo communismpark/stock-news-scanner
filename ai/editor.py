@@ -71,6 +71,32 @@ def _format_article_for_prompt(a: dict, idx: int) -> str:
     )
 
 
+_MAX_MAJOR   = 30   # articles sent to Claude per pool (pre-ranked by relevance)
+_MAX_MAG7    = 40
+_MAX_WL      = 120  # pre-ranked; upgrades always injected separately
+_MAX_OTHER   = 30
+
+
+def _rank_articles(articles: list[dict]) -> list[dict]:
+    """
+    Sort articles by relevance before sending to Claude so the cap
+    always cuts the least-relevant tail, not random articles.
+
+    Priority order:
+      1. av_relevance score (Alpha Vantage, 0–1) — highest signal
+      2. Articles with tickers mentioned (more specific = more relevant)
+      3. Recency (newer first as tiebreaker)
+    """
+    def _score(a):
+        rel = float(a.get("av_relevance") or 0)
+        has_tickers = 1 if a.get("tickers") else 0
+        pub = a.get("published_at")
+        ts = pub.timestamp() if isinstance(pub, datetime) else 0
+        return (rel, has_tickers, ts)
+
+    return sorted(articles, key=_score, reverse=True)
+
+
 def _build_prompt(
     major_articles: list[dict],
     mag7_articles: list[dict],
@@ -91,9 +117,25 @@ def _build_prompt(
         lines = [_format_article_for_prompt(a, i) for i, a in enumerate(mag7_articles)]
         sections.append("## MAG7 NEWS POOL\nTickers: " + ", ".join(mag7_tickers) + "\n" + "\n".join(lines))
 
+    # Build watchlist pool: articles + upgrade/downgrade rows injected as pseudo-articles
+    wl_lines = []
     if watchlist_articles:
-        lines = [_format_article_for_prompt(a, i) for i, a in enumerate(watchlist_articles)]
-        sections.append("## WATCHLIST NEWS POOL\nTickers: " + ", ".join(watchlist_tickers) + "\n" + "\n".join(lines))
+        wl_lines = [_format_article_for_prompt(a, i) for i, a in enumerate(watchlist_articles)]
+    for u in upgrades_watchlist:
+        date_str = u["date"].strftime("%Y-%m-%d") if isinstance(u["date"], datetime) else str(u["date"])
+        action = u.get("action", "Rating change")
+        from_g = u.get("from_grade", "") or ""
+        to_g = u.get("to_grade", "") or ""
+        grade_str = f"{from_g} → {to_g}" if from_g or to_g else ""
+        ticker = u.get("ticker", "")
+        wl_lines.append(
+            f"[UPG] SOURCE=AnalystRating | TICKERS={ticker} | TIME={date_str}\n"
+            f"TITLE: {ticker}: {u.get('firm','')} {action}{(' — ' + grade_str) if grade_str else ''}\n"
+            f"SUMMARY: {u.get('firm','')} {action.lower()}s {ticker}{(' from ' + grade_str) if grade_str else ''}. "
+            f"Price target: {u.get('price_target', 'N/A')}. Action: {action}.\n"
+        )
+    if wl_lines or watchlist_tickers:
+        sections.append("## WATCHLIST NEWS POOL\nTickers: " + ", ".join(watchlist_tickers) + "\n" + "\n".join(wl_lines))
 
     if other_articles:
         lines = [_format_article_for_prompt(a, i) for i, a in enumerate(other_articles)]
@@ -119,7 +161,8 @@ RULES:
    - Signal-generating: earnings results/guidance, Fed/macro data releases, analyst upgrades/downgrades, M&A, regulatory actions, product launches with market impact, major executive changes, pre-market movers
    - DROP: opinion pieces, market recaps/roundups, evergreen educational content, generic "here's what happened last week" articles
 3. CLEAN SUMMARIES: For each surviving article, write a crisp 1-2 sentence summary focused on the trading implication.
-4. SECTION 1 THEMES: After processing major news, synthesize the 1-3 most impactful macro trading themes for today.
+4. SECTION 1 THEMES: After processing major news, synthesize 3–5 macro/sector themes most likely to drive INTRADAY price movement today. This is for a day trader — focus on what moves prices TODAY, not long-term theses. Each theme must: (a) state direction (bullish / bearish / volatile), (b) name the affected tickers or sectors, (c) identify the concrete catalyst (e.g. "Fed minutes due 2 PM ET — watch TLT, XLF, rate-sensitive growth names"). Rank by expected intraday price impact (score 1–10, 10 = highest impact).
+5. SECTION 3 ANALYST RATINGS: Any analyst upgrade/downgrade for a watchlist ticker is HIGH PRIORITY — always include it in that ticker's section3 entry, even if there is no other news for that ticker.
 
 {raw_news}
 {upgrades_text}
@@ -181,6 +224,13 @@ def run_editorial_pipeline(
     watchlist_articles = _dedup_by_url(watchlist_articles)
     other_articles = _dedup_by_url(other_articles)
 
+    # Stage 1b: pre-rank by relevance, then cap — upgrades are injected
+    # separately in the prompt so they are never affected by the cap
+    major_articles     = _rank_articles(major_articles)[:_MAX_MAJOR]
+    mag7_articles      = _rank_articles(mag7_articles)[:_MAX_MAG7]
+    watchlist_articles = _rank_articles(watchlist_articles)[:_MAX_WL]
+    other_articles     = _rank_articles(other_articles)[:_MAX_OTHER]
+
     # Fallback result (used if Claude is unavailable)
     fallback = _build_fallback(
         major_articles, mag7_articles, watchlist_articles, other_articles,
@@ -201,9 +251,12 @@ def run_editorial_pipeline(
         client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
         message = client.messages.create(
             model=CLAUDE_MODEL,
-            max_tokens=8192,
+            max_tokens=16000,
             messages=[{"role": "user", "content": prompt}],
         )
+        # Handle proxies that return a plain string instead of a proper Message object
+        if isinstance(message, str):
+            raise ValueError(f"Proxy returned unexpected string response: {message[:200]}")
         raw_text = message.content[0].text.strip()
 
         # Strip markdown code fences if present

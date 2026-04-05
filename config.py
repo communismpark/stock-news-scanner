@@ -6,7 +6,7 @@ from datetime import datetime, timedelta
 import pytz
 from dotenv import load_dotenv
 
-load_dotenv()
+load_dotenv(override=True)
 
 # ── API Keys ────────────────────────────────────────────────────────────────
 NEWSAPI_KEY = os.getenv("NEWSAPI_KEY", "")

@@ -1,8 +1,61 @@
 # Stock watchlist for Section 3 of the scanner
 # Add one ticker per line (e.g. AAPL, SPY, AMD)
 # Lines starting with # are ignored
-# Example:
-# AMD
-# INTC
-# BA
-# JPM
+META
+AAPL
+MSFT
+GOOGL
+NVDA
+TSLA
+AMZN
+NFLX
+TSM
+AMD
+UBER
+SHOP
+CRWD
+COIN
+MSTR
+ARM
+PLTR
+SNOW
+APP
+ASML
+CLS
+ADBE
+BA
+INTC
+BABA
+PDD
+FUTU
+JPM
+PEP
+MCD
+DE
+LMT
+COST
+AVGO
+UNH
+ORCL
+HD
+CRM
+NET
+NBIS
+PGR
+CRWV
+HOOD
+MU
+WM
+GE
+VST
+LLY
+ALAB
+WDC
+HIMS
+VRT
+CRCL
+WMT
+INTU
+SNDK
+FISV
+SLVP
