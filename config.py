@@ -52,7 +52,7 @@ def get_window() -> tuple[datetime, datetime]:
     Start = yesterday 4:00 PM ET (previous market close).
     End   = now.
     """
-    now_et = datetime.now(ET)
+    now_et = datetime.now(ET) - timedelta(days=3)
     # If it's before 4 PM today, yesterday's close = yesterday at 4 PM
     # If it's after 4 PM today (post-market), yesterday's close = today at 4 PM
     today_close = now_et.replace(hour=16, minute=0, second=0, microsecond=0)
@@ -73,4 +73,4 @@ RSS_FEEDS = [
 ]
 
 # ── Claude Model ──────────────────────────────────────────────────────────────
-CLAUDE_MODEL = "claude-haiku-4-5-20251001"
+CLAUDE_MODEL = "claude-sonnet-4-6"

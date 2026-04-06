@@ -73,8 +73,8 @@ def _format_article_for_prompt(a: dict, idx: int) -> str:
 
 _MAX_MAJOR   = 30   # articles sent to Claude per pool (pre-ranked by relevance)
 _MAX_MAG7    = 40
-_MAX_WL      = 120  # pre-ranked; upgrades always injected separately
-_MAX_OTHER   = 30
+_MAX_WL      = 80   # pre-ranked; upgrades always injected separately
+_MAX_OTHER   = 20
 
 
 def _rank_articles(articles: list[dict]) -> list[dict]:
@@ -163,6 +163,7 @@ RULES:
 3. CLEAN SUMMARIES: For each surviving article, write a crisp 1-2 sentence summary focused on the trading implication.
 4. SECTION 1 THEMES: After processing major news, synthesize 3–5 macro/sector themes most likely to drive INTRADAY price movement today. This is for a day trader — focus on what moves prices TODAY, not long-term theses. Each theme must: (a) state direction (bullish / bearish / volatile), (b) name the affected tickers or sectors, (c) identify the concrete catalyst (e.g. "Fed minutes due 2 PM ET — watch TLT, XLF, rate-sensitive growth names"). Rank by expected intraday price impact (score 1–10, 10 = highest impact).
 5. SECTION 3 ANALYST RATINGS: Any analyst upgrade/downgrade for a watchlist ticker is HIGH PRIORITY — always include it in that ticker's section3 entry, even if there is no other news for that ticker.
+6. OUTPUT SIZE: Be aggressive about filtering. For section2 and section3, include at most 3 articles per ticker. Only include tickers where the news is genuinely actionable TODAY. Omit tickers with only opinion/evergreen content.
 
 {raw_news}
 {upgrades_text}
