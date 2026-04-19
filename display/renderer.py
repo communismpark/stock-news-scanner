@@ -46,8 +46,6 @@ def _article_panel(article: dict, color: str = "white") -> Panel:
     body = f"[{color}]{summary}[/]"
     if tickers:
         body += f"\n{tickers}"
-    if url:
-        body += f"\n[dim]{url}[/]"
 
     title = f"[bold]{_safe(article.get('title', ''))}[/]  [dim]{source} · {pub}[/]"
     return Panel(body, title=title, border_style=color, padding=(0, 1))
@@ -118,7 +116,7 @@ def render_section2(data: dict, upgrades: list[dict]):
         any_content = True
         console.print(f"[bold blue]  ${ticker}[/]")
         if summary:
-            console.print(f"  [white]{_safe(summary)}[/]\n")
+            console.print(f"  [white]{_safe(summary)}[/]")
         for article in articles:
             console.print(_article_panel(article, color="blue"))
 
@@ -149,7 +147,7 @@ def render_section3(data: dict, upgrades: list[dict]):
             continue
         console.print(f"[bold green]  ${ticker}[/]")
         if summary:
-            console.print(f"  [white]{_safe(summary)}[/]\n")
+            console.print(f"  [white]{_safe(summary)}[/]")
         for article in articles:
             console.print(_article_panel(article, color="green"))
 
