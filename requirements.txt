@@ -8,3 +8,4 @@ ntscraper
 rich
 python-dotenv
 pytz
+pandas_market_calendars

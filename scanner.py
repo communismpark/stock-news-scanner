@@ -4,14 +4,16 @@ scanner.py — Pre-Market Stock News Scanner for Day Traders
 Covers the window: yesterday 4:00 PM ET → now (today's market open)
 
 USAGE:
-  python scanner.py
+  python scanner.py              # runs only on NYSE trading days
+  python scanner.py --force      # bypass trading-day check
+  python scanner.py --no-email   # skip email even if configured
 
 SCHEDULED (Windows Task Scheduler):
   Action: Start a program
-  Program: python
-  Arguments: "D:\\py projects\\stock-news-scanner\\scanner.py"
+  Program: py
+  Arguments: -3.13 "D:\\py projects\\stock-news-scanner\\scanner.py"
   Start in: D:\\py projects\\stock-news-scanner
-  Trigger: Daily at 8:30 AM
+  Trigger: Daily at 9:30 AM
 
 SECTIONS:
   1. Major News & Trading Thesis  (macro themes for the day)
@@ -20,6 +22,7 @@ SECTIONS:
   4. Other Notable News           (@DeItaone + remaining headlines)
 """
 
+import argparse
 import concurrent.futures
 import sys
 
@@ -40,9 +43,32 @@ from fetchers import (
 from sources import deltaaone
 from ai import editor
 from display import renderer
+from display import emailer
+
+
+def _is_trading_day() -> bool:
+    """Return True if today is a NYSE trading day."""
+    try:
+        import pandas as pd
+        import pandas_market_calendars as mcal
+        nyse = mcal.get_calendar("NYSE")
+        today = pd.Timestamp.now(tz="America/New_York").normalize()
+        schedule = nyse.schedule(start_date=today, end_date=today)
+        return not schedule.empty
+    except Exception:
+        return True  # if check fails, proceed anyway
 
 
 def main():
+    parser = argparse.ArgumentParser(description="Pre-market stock news scanner")
+    parser.add_argument("--force", action="store_true", help="Run even on non-trading days")
+    parser.add_argument("--no-email", action="store_true", help="Skip email delivery")
+    args = parser.parse_args()
+
+    if not args.force and not _is_trading_day():
+        renderer.console.print("[dim]Today is not a NYSE trading day — skipping. Use --force to override.[/]")
+        sys.exit(0)
+
     # ── Startup checks ────────────────────────────────────────────────────────
     missing = check_keys()
     if missing:
@@ -142,6 +168,18 @@ def main():
 
     # ── Render ────────────────────────────────────────────────────────────────
     renderer.render_all(result, window_start, window_end)
+
+    # ── Email ─────────────────────────────────────────────────────────────────
+    if not args.no_email:
+        renderer.console.print("[dim]Sending email briefing...[/]", end=" ")
+        try:
+            sent = emailer.send_briefing(result, window_start, window_end)
+            if sent:
+                renderer.console.print("[green]done[/]")
+            else:
+                renderer.console.print("[dim]skipped (EMAIL_FROM/TO/PASSWORD not set)[/]")
+        except Exception as e:
+            renderer.console.print(f"[yellow]failed ({e})[/]")
 
 
 def _safe(future, default):

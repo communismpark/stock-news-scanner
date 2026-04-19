@@ -14,6 +14,13 @@ FINNHUB_KEY = os.getenv("FINNHUB_KEY", "")
 ALPHA_VANTAGE_KEY = os.getenv("ALPHA_VANTAGE_KEY", "")
 ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "")
 
+# ── Email ────────────────────────────────────────────────────────────────────
+EMAIL_FROM      = os.getenv("EMAIL_FROM", "")
+EMAIL_TO        = os.getenv("EMAIL_TO", "")
+EMAIL_PASSWORD  = os.getenv("EMAIL_PASSWORD", "")
+EMAIL_SMTP_HOST = os.getenv("EMAIL_SMTP_HOST", "smtp.gmail.com")
+EMAIL_SMTP_PORT = int(os.getenv("EMAIL_SMTP_PORT", "587"))
+
 def check_keys():
     """Warn (don't crash) if any API key is missing."""
     missing = []
